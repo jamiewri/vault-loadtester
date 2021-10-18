@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import requests
+import json
+import time
+import statistics 
+import numpy
+import threading
+
+# Import ./utils.py
+import utils
+
+class vaultClient():
+
+    def __init__(self, vaultAddr, vaultToken):
+      self.vaultAddr = vaultAddr
+      self.vaultToken = vaultToken
+
+class vaultApi():
+
+    def __init__(self, method):
+      self.method = method
+
+      if self.method == 'transit':
+        self.apiMethod = '/v1/transit/encrypt/'
+        self.encryptionKey = 'application-1'
+        self.data = utils.generateCreditCardNumbers(5)
+
+  
+def transitEncrypt(vaultClient, vaultApi, verbosity):
+  
+  for i in vaultApi.data:
+    payload = {'plaintext': i}
+    headers = {'X-Vault-Token': vaultClient.vaultToken}
+    url = vaultClient.vaultAddr + vaultApi.apiMethod + vaultApi.encryptionKey
+
+    response = requests.post(url=url, data=json.dumps(payload), headers=headers)
+
+    responseJson = response.json() 
+    
+    responseTimes.append(response.elapsed.total_seconds())
+    responseCodes.append(response.status_code)
+
+    utils.logging.info(responseJson['data']['ciphertext'])
+
+if __name__ == "__main__":
+  
+    # Parse args and start logging
+    args = utils.argParser().parse_args(sys.argv[1:])
+    utils.startLogging(args.verbosity)
+
+    # Parse env vars
+    vaultAddr =  os.environ['VAULT_ADDR']
+    vaultToken = os.environ['VAULT_TOKEN']
+
+    # Init Vault client
+    client = vaultClient(vaultAddr=vaultAddr,
+                         vaultToken=vaultToken)
+
+    # Init api method 
+    method = vaultApi(method='transit')
+ 
+    # Create a global variable to collect stats from each thread 
+    global responseTimes
+    global responseCodes
+    responseTimes = []
+    responseCodes = []
+
+    # Set test arguments
+    numberOfThreads = args.threads 
+
+    #Run test for the duration set my cli args, this is approx at best
+    timeEnd = time.time() + args.duration
+
+    while time.time() < timeEnd:
+
+        # Start threading workload
+        threads = []
+    
+        # Create a list of each thread
+        for i in range(numberOfThreads):
+          threadNumber = i
+          t = threading.Thread(target=transitEncrypt, args=(client, method, args.verbosity))
+          t.daemon = True
+          threads.append(t)
+    
+        # Start each thread
+        for i in range(numberOfThreads):
+          threads[i-1].start()
+    
+        # Add each thread to the thread pool
+        for i in range(numberOfThreads):
+          threads[i-1].join()
+  
+    # Sleep to allow all requests to finish
+    time.sleep(1)
+
+    # Calculate statistics
+    numberOfRequests = len(responseTimes)
+    numberOf200 = responseCodes.count(200)
+    meanResponseTime = round(statistics.mean(responseTimes), 5)
+    percentile90 = round(numpy.percentile(responseTimes, 90), 5)
+    percentile95 = round(numpy.percentile(responseTimes, 95), 5)
+    percentile99 = round(numpy.percentile(responseTimes, 99), 5)
+    requestsPerSecond = numberOfRequests / args.duration
+    
+    # Output statistics
+    print(f'Requests per second {requestsPerSecond}')
+    print(f'Number of Reqests {numberOfRequests}')
+    print(f'Number of 200s {numberOf200}')
+    print(f'Mean = {meanResponseTime} seconds')
+    print(f'90%  = {percentile90} seconds')
+    print(f'95%  = {percentile95} seconds')
+    print(f'99%  = {percentile99} seconds')
