@@ -2,6 +2,8 @@ import logging
 import argparse
 import base64
 import random
+import requests
+import json
 
 def startLogging(verbosity):
     """
@@ -104,3 +106,34 @@ def base64EncodeString(data):
     base64String = base64Bytes.decode('ascii')
   
     return base64String
+
+def checkMount(vaultClient, path):
+    """
+    Check if there is anything mounted a the supplied path
+    """
+
+    url = vaultClient.addr + '/v1/sys/mounts'
+    response = requests.get(url=url, headers=vaultClient.headers)
+    responseJson = response.json()
+  
+    for i in responseJson['data']:
+      if i == path + '/':
+        logging.info(path + '/ is already mounted')
+        return True
+    logging.info('There is nothing mounted at ' + path) 
+    return False
+
+
+def createMount(vaultClient, path, secretsEngine):
+    """
+    Check if something is already mounted at the supplied path, if not
+    mount a secrets engine there
+    """
+
+    mountExists = checkMount(vaultClient, path)
+    if not mountExists:
+      url = vaultClient.addr + '/v1/sys/mounts/' + path
+      payload = {'type': secretsEngine}
+      response = requests.post(url=url, headers=vaultClient.headers, data=json.dumps(payload))
+      logging.info('A ' + secretsEngine + ' secrets engine has been mounted at ' + path)
+
