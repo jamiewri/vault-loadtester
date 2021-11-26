@@ -17,13 +17,12 @@ class vaultClient():
     def __init__(self, vaultAddr, vaultToken):
       self.vaultAddr = vaultAddr
       self.vaultToken = vaultToken
-
+      self.vaultHeaders = {'X-Vault-Token': self.vaultToken}
 
 def checkMount(vaultClient, mount):
 
-  headers = {'X-Vault-Token': vaultClient.vaultToken}
   url = vaultClient.vaultAddr + '/v1/sys/mounts'
-  response = requests.get(url=url, headers=headers)
+  response = requests.get(url=url, headers=vaultClient.vaultHeaders)
   responseJson = response.json()
 
   for i in responseJson['data']:
@@ -36,10 +35,9 @@ def checkMount(vaultClient, mount):
 def createMount(vaultClient, mount, secretsEngine):
 
   url = vaultClient.vaultAddr + '/v1/sys/mounts/' + mount
-  headers = {'X-Vault-Token': vaultClient.vaultToken}
   payload = {'type': secretsEngine}
 
-  response = requests.post(url=url, headers=headers, data=json.dumps(payload))
+  response = requests.post(url=url, headers=vaultClient.vaultHeaders, data=json.dumps(payload))
   utils.logging.info('A ' + secretsEngine + ' secrets engine has been mounted at ' + mount)
   
 def transitEncrypt(vaultClient, mount, verbosity):
@@ -50,10 +48,9 @@ def transitEncrypt(vaultClient, mount, verbosity):
 
   for i in data:
     payload = {'plaintext': i}
-    headers = {'X-Vault-Token': vaultClient.vaultToken}
     url = vaultClient.vaultAddr + apiMethod + encryptionKey
 
-    response = requests.post(url=url, data=json.dumps(payload), headers=headers)
+    response = requests.post(url=url, data=json.dumps(payload), headers=vaultClient.vaultHeaders)
 
     responseJson = response.json() 
     
