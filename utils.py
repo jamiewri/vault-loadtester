@@ -113,7 +113,7 @@ def checkMount(vaultClient, path):
     """
 
     url = vaultClient.addr + '/v1/sys/mounts'
-    response = requests.get(url=url, headers=vaultClient.vaultHeaders)
+    response = requests.get(url=url, headers=vaultClient.headers)
     responseJson = response.json()
   
     for i in responseJson['data']:

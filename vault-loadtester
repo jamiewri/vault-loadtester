@@ -58,7 +58,8 @@ if __name__ == "__main__":
     client = vaultClient()
 
     # Mount transit secrets engine at path
-    utils.createMount(client, args.path, 'transit')
+    transitPath = args.path
+    utils.createMount(client, transitPath, 'transit')
  
     # Create a global variable to collect stats from each thread 
     global responseTimes
