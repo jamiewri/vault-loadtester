@@ -48,6 +48,14 @@ def argParser():
                         type=str, 
                         )
 
+    parser.add_argument('--path', 
+                        action='store', 
+                        default='transit',
+                        help='Transit path',
+                        nargs='?', 
+                        type=str, 
+                        )
+
     parser.add_argument('--duration', 
                         action='store', 
                         default=10,

@@ -18,23 +18,40 @@ class vaultClient():
       self.vaultAddr = vaultAddr
       self.vaultToken = vaultToken
 
-class vaultApi():
 
-    def __init__(self, method):
-      self.method = method
+def checkMount(vaultClient, mount):
 
-      if self.method == 'transit':
-        self.apiMethod = '/v1/transit/encrypt/'
-        self.encryptionKey = 'application-1'
-        self.data = utils.generateCreditCardNumbers(5)
+  headers = {'X-Vault-Token': vaultClient.vaultToken}
+  url = vaultClient.vaultAddr + '/v1/sys/mounts'
+  response = requests.get(url=url, headers=headers)
+  responseJson = response.json()
 
+  for i in responseJson['data']:
+    if i == mount + '/':
+      utils.logging.info(mount + '/ is already mounted')
+      return True
+
+  return False
+
+def createMount(vaultClient, mount, secretsEngine):
+
+  url = vaultClient.vaultAddr + '/v1/sys/mounts/' + mount
+  headers = {'X-Vault-Token': vaultClient.vaultToken}
+  payload = {'type': secretsEngine}
+
+  response = requests.post(url=url, headers=headers, data=json.dumps(payload))
+  utils.logging.info('A ' + secretsEngine + ' secrets engine has been mounted at ' + mount)
   
-def transitEncrypt(vaultClient, vaultApi, verbosity):
-  
-  for i in vaultApi.data:
+def transitEncrypt(vaultClient, mount, verbosity):
+
+  apiMethod = '/v1/' + mount + '/encrypt/'
+  encryptionKey = 'application-1'
+  data = utils.generateCreditCardNumbers(5)
+
+  for i in data:
     payload = {'plaintext': i}
     headers = {'X-Vault-Token': vaultClient.vaultToken}
-    url = vaultClient.vaultAddr + vaultApi.apiMethod + vaultApi.encryptionKey
+    url = vaultClient.vaultAddr + apiMethod + encryptionKey
 
     response = requests.post(url=url, data=json.dumps(payload), headers=headers)
 
@@ -59,8 +76,12 @@ if __name__ == "__main__":
     client = vaultClient(vaultAddr=vaultAddr,
                          vaultToken=vaultToken)
 
-    # Init api method 
-    method = vaultApi(method='transit')
+    # Check if there is anything already mounted at path
+    transitPath = args.path
+    transitMounted = checkMount(client, transitPath)
+
+    if not transitMounted:
+      createMount(client, transitPath, 'transit')
  
     # Create a global variable to collect stats from each thread 
     global responseTimes
@@ -71,7 +92,7 @@ if __name__ == "__main__":
     # Set test arguments
     numberOfThreads = args.threads 
 
-    #Run test for the duration set my cli args, this is approx at best
+    # Run test for the duration set my cli args, this is approx at best
     timeEnd = time.time() + args.duration
 
     while time.time() < timeEnd:
@@ -82,7 +103,7 @@ if __name__ == "__main__":
         # Create a list of each thread
         for i in range(numberOfThreads):
           threadNumber = i
-          t = threading.Thread(target=transitEncrypt, args=(client, method, args.verbosity))
+          t = threading.Thread(target=transitEncrypt, args=(client, transitPath, args.verbosity))
           t.daemon = True
           threads.append(t)
     
