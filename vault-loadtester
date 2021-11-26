@@ -14,33 +14,24 @@ import utils
 
 class vaultClient():
 
-    def __init__(self, vaultAddr, vaultToken):
-      self.vaultAddr = vaultAddr
-      self.vaultToken = vaultToken
-      self.vaultHeaders = {'X-Vault-Token': self.vaultToken}
+    def __init__(self):
+      addr = os.environ.get('VAULT_ADDR')
+      token = os.environ.get('VAULT_TOKEN')
 
-def checkMount(vaultClient, mount):
+      if not addr:
+        utils.logging.error('Environment variable VAULT_ADDR not found. Exiting')
+        exit(1)
+      
+      if not token:
+        utils.logging.error('Environment variable VAULT_TOKEN not found. Exiting')
+        exit(1)
 
-  url = vaultClient.vaultAddr + '/v1/sys/mounts'
-  response = requests.get(url=url, headers=vaultClient.vaultHeaders)
-  responseJson = response.json()
+      self.addr = addr
+      self.token = token
+      self.headers = {'X-Vault-Token': self.token}
 
-  for i in responseJson['data']:
-    if i == mount + '/':
-      utils.logging.info(mount + '/ is already mounted')
-      return True
-
-  return False
-
-def createMount(vaultClient, mount, secretsEngine):
-
-  url = vaultClient.vaultAddr + '/v1/sys/mounts/' + mount
-  payload = {'type': secretsEngine}
-
-  response = requests.post(url=url, headers=vaultClient.vaultHeaders, data=json.dumps(payload))
-  utils.logging.info('A ' + secretsEngine + ' secrets engine has been mounted at ' + mount)
   
-def transitEncrypt(vaultClient, mount, verbosity):
+def transitEncrypt(vaultClient, mount):
 
   apiMethod = '/v1/' + mount + '/encrypt/'
   encryptionKey = 'application-1'
@@ -48,16 +39,14 @@ def transitEncrypt(vaultClient, mount, verbosity):
 
   for i in data:
     payload = {'plaintext': i}
-    url = vaultClient.vaultAddr + apiMethod + encryptionKey
+    url = vaultClient.addr + apiMethod + encryptionKey
 
-    response = requests.post(url=url, data=json.dumps(payload), headers=vaultClient.vaultHeaders)
-
+    response = requests.post(url=url, data=json.dumps(payload), headers=vaultClient.headers)
     responseJson = response.json() 
-    
     responseTimes.append(response.elapsed.total_seconds())
     responseCodes.append(response.status_code)
 
-    utils.logging.info(responseJson['data']['ciphertext'])
+    utils.logging.debug(responseJson['data']['ciphertext'])
 
 if __name__ == "__main__":
   
@@ -65,20 +54,11 @@ if __name__ == "__main__":
     args = utils.argParser().parse_args(sys.argv[1:])
     utils.startLogging(args.verbosity)
 
-    # Parse env vars
-    vaultAddr =  os.environ['VAULT_ADDR']
-    vaultToken = os.environ['VAULT_TOKEN']
-
     # Init Vault client
-    client = vaultClient(vaultAddr=vaultAddr,
-                         vaultToken=vaultToken)
+    client = vaultClient()
 
-    # Check if there is anything already mounted at path
-    transitPath = args.path
-    transitMounted = checkMount(client, transitPath)
-
-    if not transitMounted:
-      createMount(client, transitPath, 'transit')
+    # Mount transit secrets engine at path
+    utils.createMount(client, args.path, 'transit')
  
     # Create a global variable to collect stats from each thread 
     global responseTimes
@@ -100,7 +80,7 @@ if __name__ == "__main__":
         # Create a list of each thread
         for i in range(numberOfThreads):
           threadNumber = i
-          t = threading.Thread(target=transitEncrypt, args=(client, transitPath, args.verbosity))
+          t = threading.Thread(target=transitEncrypt, args=(client, transitPath))
           t.daemon = True
           threads.append(t)
     
