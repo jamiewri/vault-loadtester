@@ -1,5 +1,5 @@
 # vault-loadtester
-This repo is a collection of python scripts that i use as a basic method to envoke a multithreaded load on Vault. There is limted to no error handeling, use at own risk.
+This repo is a collection of python scripts that i use to run a multithreaded load on Vault. There is limted to no error handeling, use at own risk.
 
 ## Dependancies
 - Python3
